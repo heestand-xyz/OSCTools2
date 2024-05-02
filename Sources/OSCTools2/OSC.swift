@@ -62,7 +62,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         client = nil
         server = nil
                 
-        client = OSCClient(localPort: UInt16(settings.clientPort))
+        client = OSCClient()
         
         server = OSCServer(port: UInt16(settings.serverPort), receiveQueue: queue, dispatchQueue: queue)
 #endif
@@ -200,7 +200,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
 //        CRASH in OSCKit (before Issue-#10) on DispatchQueue.global(qos: .userInteractive).async { [weak self] in
         do {
             let message: OSCMessage = .message(address, values: [value])
-            try self.client?.send(message, to: settings.clientAddress)
+            try self.client?.send(message, to: settings.clientAddress, port: UInt16(settings.clientPort))
         } catch {
             Logger.log(.error(error), message: "OSC Message Failed to Send", arguments: ["address": address, "value": value])
         }
@@ -405,15 +405,11 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     func setting(preferredServerAddress: String?) {}
     
-    public func setting(clientPort: Int) {
-        let port = (clientPort >= 1024 && clientPort <= 65_535) ? UInt16(clientPort) : 1024
-        tearDown()
-        setup()
-    }
+    public func setting(clientPort: Int) {}
     
     public func setting(serverPort: Int) {
         isServerPortOpen = OSC.isPortOpen(port: in_port_t(serverPort))
-        let port = (serverPort >= 1024 && serverPort <= 65_535) ? UInt16(serverPort) : 1024
+//        let port = (serverPort >= 1024 && serverPort <= 65_535) ? UInt16(serverPort) : 1024
         tearDown()
         setup()
     }
