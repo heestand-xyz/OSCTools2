@@ -19,6 +19,8 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     var client: OSCClient?
     var server: OSCServer?
     #endif
+    
+    let localNetworkAuthorization = LocalNetworkAuthorization()
 
     private var isRunning: Bool = false
     @Published public var tcpClientIsConnected: Bool = false
@@ -366,6 +368,16 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
             self?.recentOutput = false
         })
         RunLoop.current.add(recentOutputTimer!, forMode: .common)
+    }
+    
+    // MARK: - Authorization
+    
+    public func authorize(completion: ((Bool) -> ())? = nil) {
+        localNetworkAuthorization.requestAuthorization { authorized in
+            DispatchQueue.main.async {
+                completion?(authorized)
+            }
+        }
     }
     
     // MARK: - Port
