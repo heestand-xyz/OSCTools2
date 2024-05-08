@@ -23,8 +23,6 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     let localNetworkAuthorization = LocalNetworkAuthorization()
 
     private var isRunning: Bool = false
-    @Published public var tcpClientIsConnected: Bool = false
-    @Published public var tcpServerIsConnected: Bool = false
     
     @Published public var isServerPortOpen: Bool!
     
@@ -33,7 +31,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     var recentInputTimer: Timer?
     var recentOutputTimer: Timer?
     
-    var listeners: [UUID: (_ address: String, _ values: [Any]) -> ()] = [:]
+    var listeners: [UUID: (_ address: String, _ values: [any OSCValue]) -> ()] = [:]
     
     public var active: Bool = true {
         didSet {
@@ -190,13 +188,14 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     @discardableResult
     public func backgroundListenToAny(
         to address: @escaping () -> (String),
-        _ callback: @escaping (Any) -> ()
+        _ callback: @escaping (any OSCValue) -> ()
     ) -> UUID {
         let id = UUID()
-        listeners[id] = { [weak self] valueAddress, value in
+        listeners[id] = { [weak self] valueAddress, values in
             guard let self = self else { return }
             guard self.wildcardMatch(valueAddress, with: address()) else { return }
-            callback([value])
+            guard let value: any OSCValue = values.first else { return }
+            callback(value)
         }
         return id
     }
@@ -204,20 +203,20 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     @discardableResult
     public func backgroundListenToAnyArray(
         to address: @escaping () -> (String),
-        _ callback: @escaping ([Any]) -> ()
+        _ callback: @escaping ([any OSCValue]) -> ()
     ) -> UUID {
         let id = UUID()
-        listeners[id] = { [weak self] valueAddress, value in
+        listeners[id] = { [weak self] valueAddress, values in
             guard let self = self else { return }
             guard self.wildcardMatch(valueAddress, with: address()) else { return }
-            callback(value)
+            callback(values)
         }
         return id
     }
     
     @discardableResult
     public func backgroundListenToAll(
-        _ callback: @escaping (String, Any) -> ()
+        _ callback: @escaping (String, [any OSCValue]) -> ()
     ) -> UUID {
         let id = UUID()
         listeners[id] = callback
@@ -258,7 +257,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
             
             let address: String = message.addressPattern.stringValue
             guard address != "/_samplerate" else { return }
-            var values: [Any] = message.values
+            var values: [any OSCValue] = message.values
             
             Logger.log(arguments: ["address": address, "values": values], frequency: .loop)
             
@@ -328,7 +327,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     // MARK: - Filter NaN
     
-    func filterNaN(_ value: Any) -> Any {
+    func filterNaN(_ value: any OSCValue) -> any OSCValue {
         if let cgFloat = value as? CGFloat {
             if !cgFloat.isFinite {
                 return CGFloat(0.0)
