@@ -10,6 +10,21 @@ import Combine
 
 public class OSCConnection: ObservableObject {
     
+    public enum State {
+        case wifi
+        case cellular
+        case offline
+    }
+    public var state: State {
+        if wifi == true {
+            .wifi
+        } else if cellular == true {
+            .cellular
+        } else {
+            .offline
+        }
+    }
+    
     @Published public var wifi: Bool?
     @Published public var cellular: Bool?
     

@@ -15,9 +15,16 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/orchetect/OSCKit", from: "0.5.0"),
         .package(url: "https://github.com/heestand-xyz/Logger", from: "0.3.0"),
-        .package(name: "Reachability", url: "https://github.com/ashleymills/Reachability.swift", from: "5.1.0"),
+        .package(url: "https://github.com/ashleymills/Reachability.swift", from: "5.1.0"),
     ],
     targets: [
-        .target(name: "OSCTools2", dependencies: ["OSCKit", "Reachability", "Logger"]),
+        .target(
+            name: "OSCTools2",
+            dependencies: [
+                "OSCKit",
+                .product(name: "Reachability", package: "Reachability.swift"),
+                "Logger"
+            ]
+        ),
     ]
 )

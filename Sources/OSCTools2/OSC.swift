@@ -33,7 +33,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     var recentInputTimer: Timer?
     var recentOutputTimer: Timer?
     
-    var listeners: [UUID: (_ address: String, _ value: Any) -> ()] = [:]
+    var listeners: [UUID: (_ address: String, _ values: [Any]) -> ()] = [:]
     
     public var active: Bool = true {
         didSet {
@@ -164,16 +164,44 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     }
     
     @discardableResult
-    public func backgroundListen<T: OSCType>(to address: @escaping () -> (String),
-                                             _ callback: @escaping (T) -> ()) -> UUID {
+    public func backgroundListen<T: OSCType>(
+        to address: @escaping () -> (String),
+        _ callback: @escaping (T) -> ()
+    ) -> UUID {
         backgroundListenToAny(to: address) { value in
             callback(T.convert(value: value))
         }
     }
     
     @discardableResult
-    public func backgroundListenToAny(to address: @escaping () -> (String),
-                                      _ callback: @escaping (Any) -> ()) -> UUID {
+    public func backgroundListenToArray<T: OSCType>(
+        to address: @escaping () -> (String),
+        _ callback: @escaping ([T]) -> ()
+    ) -> UUID {
+        backgroundListenToAnyArray(to: address) { values in
+            callback(values.map({ T.convert(value: $0) }))
+        }
+    }
+    
+    @discardableResult
+    public func backgroundListenToAny(
+        to address: @escaping () -> (String),
+        _ callback: @escaping (Any) -> ()
+    ) -> UUID {
+        let id = UUID()
+        listeners[id] = { [weak self] valueAddress, value in
+            guard let self = self else { return }
+            guard self.wildcardMatch(valueAddress, with: address()) else { return }
+            callback([value])
+        }
+        return id
+    }
+    
+    @discardableResult
+    public func backgroundListenToAnyArray(
+        to address: @escaping () -> (String),
+        _ callback: @escaping ([Any]) -> ()
+    ) -> UUID {
         let id = UUID()
         listeners[id] = { [weak self] valueAddress, value in
             guard let self = self else { return }
@@ -184,7 +212,9 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     }
     
     @discardableResult
-    public func backgroundListenToAll(_ callback: @escaping (String, Any) -> ()) -> UUID {
+    public func backgroundListenToAll(
+        _ callback: @escaping (String, Any) -> ()
+    ) -> UUID {
         let id = UUID()
         listeners[id] = callback
         return id
@@ -192,19 +222,19 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     // MARK: - Send
     
-    public func send(value: AnyOSCValue, address: String) {
+    public func send(values: [AnyOSCValue], address: String) {
         
         guard active else { return }
         
-        Logger.log(arguments: ["address": address, "value": value], frequency: .loop)
+        Logger.log(arguments: ["address": address, "values": values], frequency: .loop)
         
 #if !targetEnvironment(simulator)
 //        CRASH in OSCKit (before Issue-#10) on DispatchQueue.global(qos: .userInteractive).async { [weak self] in
         do {
-            let message: OSCMessage = .message(address, values: [value])
+            let message: OSCMessage = .message(address, values: values)
             try self.client?.send(message, to: settings.clientAddress, port: UInt16(settings.clientPort))
         } catch {
-            Logger.log(.error(error), message: "OSC Message Failed to Send", arguments: ["address": address, "value": value])
+            Logger.log(.error(error), message: "OSC Message Failed to Send", arguments: ["address": address, "values": values])
         }
         DispatchQueue.main.async {
             self.setRecentOutput()
@@ -224,23 +254,14 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
             
             let address: String = message.addressPattern.stringValue
             guard address != "/_samplerate" else { return }
-            guard var value: Any = message.values.first else { return }
+            var values: [Any] = message.values
             
-            Logger.log(arguments: ["address": address, "value": value], frequency: .loop)
+            Logger.log(arguments: ["address": address, "values": values], frequency: .loop)
             
-            /// Gate
-            if self.gate == true {
-                let textValue: String = String.convert(value: value)
-                if let lastTextValue: String = self.lastValuesReceived[address] {
-                    guard lastTextValue != textValue else { return }
-                }
-                self.lastValuesReceived[address] = textValue
-            }
-            
-            value = self.filterNaN(value)
+            values = values.map { self.filterNaN($0) }
             
             for listener in self.listeners {
-                listener.value(address, value)
+                listener.value(address, values)
             }
             
         }
