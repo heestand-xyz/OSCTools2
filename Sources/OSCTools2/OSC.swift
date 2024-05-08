@@ -76,10 +76,12 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
 #endif
         
         settings.delegate = self
-        
+
+#if !targetEnvironment(simulator)
         server!.setHandler { [weak self] message, timeTag in
             self?.take(message: message)
         }
+#endif
         
         start()
         
@@ -95,8 +97,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     private func tearDown() {
         stop()
+#if !targetEnvironment(simulator)
         client = nil
         server = nil
+#endif
     }
     
     // MARK: - App IO
