@@ -251,7 +251,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         
         guard active else { return }
         
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
+        queue.async { [weak self] in
             
             guard let self = self else { return }
             
