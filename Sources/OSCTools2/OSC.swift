@@ -225,6 +225,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     // MARK: - Send
     
+    public func send(value: AnyOSCValue, address: String) {
+        send(values: [value], address: address)
+    }
+    
     public func send(values: [AnyOSCValue], address: String) {
         
         guard active else { return }
