@@ -268,9 +268,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
             values = values.map { self.filterNaN($0) }
             
             for listener in self.listeners {
-                listener.value(address, values)
+                queue.async {
+                    listener.value(address, values)
+                }
             }
-            
         }
         
         /// Indication
