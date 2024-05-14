@@ -257,24 +257,12 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         
         guard active else { return }
         
-//        queue.async { [weak self] in
-//            
-//            guard let self = self else { return }
-            
-            let address: String = message.addressPattern.stringValue
-            guard address != "/_samplerate" else { return }
-            var values: [any OSCValue] = message.values
-            
-            Logger.log(arguments: ["address": address, "values": values], frequency: .loop)
-            
-            values = values.map { self.filterNaN($0) }
-            
-            for listener in self.listeners {
-//                queue.async {
-                    listener.value(address, values)
-//                }
-            }
-//        }
+        let address: String = message.addressPattern.stringValue
+        let values: [any OSCValue] = message.values
+        
+        for listener in listeners {
+            listener.value(address, values)
+        }
         
         /// Indication
         DispatchQueue.main.async { [weak self] in
