@@ -128,7 +128,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         start()
         #endif
         
-        connection.monitor()
+        connection.start()
         connection.check()
     }
     
@@ -137,6 +137,8 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         #if !os(macOS)
         stop()
         #endif
+        
+        connection.stop()
     }
     
     @objc func willEnterForeground() {}

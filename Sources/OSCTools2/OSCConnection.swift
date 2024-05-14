@@ -4,45 +4,72 @@
 //
 
 import Foundation
-import Reachability
+import Connectivity
 import Logger
 import Combine
 
 public class OSCConnection: ObservableObject {
     
-    public enum State {
-        case wifi
-        case cellular
-        case offline
+    @Published private var status: ConnectivityStatus = .determining
+    
+    public enum State: Equatable {
+        public enum Connection {
+            case wifi
+            case cellular
+            case ethernet
+        }
+        case connected(Connection, withInternet: Bool)
+        case disconnected
+        case determining
     }
+    
     public var state: State {
-        if wifi == true {
-            .wifi
-        } else if cellular == true {
-            .cellular
-        } else {
-            .offline
+        switch status {
+        case .connected, .connectedViaWiFi:
+            return .connected(.wifi, withInternet: true)
+        case .connectedViaCellular:
+            return .connected(.cellular, withInternet: true)
+        case .connectedViaEthernet:
+            return .connected(.ethernet, withInternet: true)
+        case .connectedViaWiFiWithoutInternet:
+            return .connected(.wifi, withInternet: false)
+        case .connectedViaCellularWithoutInternet:
+            return .connected(.cellular, withInternet: false)
+        case .connectedViaEthernetWithoutInternet:
+            return .connected(.ethernet, withInternet: false)
+        case .notConnected:
+            return .disconnected
+        case .determining:
+            return .determining
         }
     }
     
-    @Published public var wifi: Bool?
-    @Published public var cellular: Bool?
+    @available(*, deprecated)
+    public var wifi: Bool {
+        if case .connected(let connection, _) = state {
+            return connection == .wifi
+        }
+        return false
+    }
+    
+    @available(*, deprecated)
+    public var cellular: Bool {
+        if case .connected(let connection, _) = state {
+            return connection == .cellular
+        }
+        return false
+    }
     
     @Published public var currentIpAddress: String?
     @Published public private(set) var allIpAddresses: [String] = []
-
-    var reachability: Reachability?
+    
+    private let connectivity = Connectivity()
     
     public init() {
         Logger.log(frequency: .verbose)
        
-#if !targetEnvironment(simulator)
-        reachability = try? Reachability()
-#endif
-        
         check()
-        monitor()
-        
+        start()
     }
     
     func setCurrent(ipAddress: String) {
@@ -57,26 +84,29 @@ public class OSCConnection: ObservableObject {
         check()
     }
     
-    /// Monitor WiFi and Cellular
-    public func monitor() {
+    public func start() {
         Logger.log(frequency: .verbose)
         
-        reachability?.whenReachable = { [weak self] reachability in
-            self?.wifi = reachability.connection == .wifi
-            self?.cellular = reachability.connection == .cellular
-            self?.check()
+        connectivity.startNotifier()
+        
+        connectivity.whenConnected = { [weak self] connectivity in
+            DispatchQueue.main.async {
+                self?.status = connectivity.status
+                self?.check()
+            }
         }
-        reachability?.whenUnreachable = { [weak self] _ in
-            self?.wifi = false
-            self?.cellular = false
-            self?.check()
+        
+        connectivity.whenDisconnected = { [weak self] connectivity in
+            DispatchQueue.main.async {
+                self?.status = connectivity.status
+                self?.check()
+            }
         }
-
-        do {
-            try reachability?.startNotifier()
-        } catch {
-            Logger.log(.error(error), message: "Unable to start notifier", frequency: .verbose)
-        }
+    }
+    
+    public func stop() {
+        Logger.log(frequency: .verbose)
+        connectivity.stopNotifier()
     }
     
     /// Check IP Address
@@ -115,11 +145,6 @@ public class OSCConnection: ObservableObject {
         self.allIpAddresses = addresses
         Logger.log(arguments: ["addresses": addresses, "targetAddress": targetIPAddress], frequency: .verbose)
 #endif
-    }
-    
-    func stop() {
-        Logger.log(frequency: .verbose)
-        reachability?.stopNotifier()
     }
     
     func getAddresses() -> [String] {
