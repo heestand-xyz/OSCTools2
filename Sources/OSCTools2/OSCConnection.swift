@@ -7,6 +7,7 @@ import Foundation
 import Connectivity
 import Logger
 import Combine
+import SystemConfiguration.CaptiveNetwork
 
 public class OSCConnection: ObservableObject {
     
@@ -63,6 +64,9 @@ public class OSCConnection: ObservableObject {
     @Published public var currentIpAddress: String?
     @Published public private(set) var allIpAddresses: [String] = []
     
+    @available(*, deprecated, message: "Stopped working in iOS 13, now requires location authentication.")
+    @Published public private(set) var wifiName: String?
+    
     private let connectivity = Connectivity()
     
     public init() {
@@ -111,6 +115,7 @@ public class OSCConnection: ObservableObject {
     
     /// Check IP Address
     public func check() {
+        wifiName = getWiFiName()
 #if !targetEnvironment(simulator)
         let addresses = getAddresses()
         var targetIPAddress: String?
@@ -124,11 +129,10 @@ public class OSCConnection: ObservableObject {
             }
         }
         if targetIPAddress == nil {
-            let subTargets: [String] = ["192", "172", "127", "10"]
+            let subTargets: [String] = ["192.168", "172", "10"]
             loop: for target in subTargets {
                 for address in addresses {
-                    let address_components = address.components(separatedBy: ".")
-                    if address_components.first == target {
+                    if address.hasPrefix(target) {
                         targetIPAddress = address
                         break loop
                     }
@@ -147,7 +151,18 @@ public class OSCConnection: ObservableObject {
 #endif
     }
     
-    func getAddresses() -> [String] {
+    private func getWiFiName() -> String? {
+        if let interfaces = CNCopySupportedInterfaces() as NSArray? {
+            for interface in interfaces {
+                if let interfaceInfo = CNCopyCurrentNetworkInfo(interface as! CFString) as NSDictionary? {
+                    return interfaceInfo[kCNNetworkInfoKeySSID as String] as? String
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func getAddresses() -> [String] {
         var addresses = [String]()
 
         // Get list of all interfaces on the local machine:
