@@ -151,6 +151,9 @@ public class OSCConnection: ObservableObject {
 #endif
     }
     
+#if os(macOS)
+    private func getWiFiName() -> String? { nil }
+#else
     private func getWiFiName() -> String? {
         if let interfaces = CNCopySupportedInterfaces() as NSArray? {
             for interface in interfaces {
@@ -161,6 +164,7 @@ public class OSCConnection: ObservableObject {
         }
         return nil
     }
+#endif
     
     private func getAddresses() -> [String] {
         var addresses = [String]()
