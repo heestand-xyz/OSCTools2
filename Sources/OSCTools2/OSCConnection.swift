@@ -64,9 +64,6 @@ public class OSCConnection: ObservableObject {
     @Published public var currentIpAddress: String?
     @Published public private(set) var allIpAddresses: [String] = []
     
-    @available(*, deprecated, message: "Stopped working in iOS 13, now requires location authentication.")
-    @Published public private(set) var wifiName: String?
-    
     private let connectivity = Connectivity()
     
     public init() {
@@ -115,7 +112,7 @@ public class OSCConnection: ObservableObject {
     
     /// Check IP Address
     public func check() {
-        wifiName = getWiFiName()
+//        wifiName = getWiFiName()
 #if !targetEnvironment(simulator)
         let addresses = getAddresses()
         var targetIPAddress: String?
@@ -151,9 +148,8 @@ public class OSCConnection: ObservableObject {
 #endif
     }
     
-#if os(macOS)
-    private func getWiFiName() -> String? { nil }
-#else
+#if !os(macOS)
+    @available(*, deprecated)
     private func getWiFiName() -> String? {
         if let interfaces = CNCopySupportedInterfaces() as NSArray? {
             for interface in interfaces {

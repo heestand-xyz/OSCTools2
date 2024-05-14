@@ -26,6 +26,8 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     @Published public var isServerPortOpen: Bool!
     
+    @Published public var updateRecentInput: Bool = false
+    @Published public var updateRecentOutput: Bool = false
     @Published public var recentInput: Bool = false
     @Published public var recentOutput: Bool = false
     var recentInputTimer: Timer?
@@ -245,8 +247,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         } catch {
             Logger.log(.error(error), message: "OSC Message Failed to Send", arguments: ["address": address, "values": values])
         }
-        DispatchQueue.main.async {
-            self.setRecentOutput()
+        if updateRecentOutput {
+            DispatchQueue.main.async {
+                self.setRecentOutput()
+            }
         }
 #endif
     }
@@ -260,13 +264,15 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         let address: String = message.addressPattern.stringValue
         let values: [any OSCValue] = message.values
         
-        for listener in listeners {
-            listener.value(address, values)
+        for (_, callback) in listeners {
+            callback(address, values)
         }
         
         /// Indication
-        DispatchQueue.main.async { [weak self] in
-            self?.setRecentInput()
+        if updateRecentInput {
+            DispatchQueue.main.async { [weak self] in
+                self?.setRecentInput()
+            }
         }
     }
 
@@ -347,7 +353,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         }
 #if !targetEnvironment(simulator)
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            guard let self = self else { return }
+            guard let self else { return }
             do {
                 try server?.start()
                 try client?.start()
