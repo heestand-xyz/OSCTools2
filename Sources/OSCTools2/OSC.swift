@@ -230,6 +230,13 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     // MARK: - Send
     
     public func send(value: AnyOSCValue, address: String) {
+        let value: AnyOSCValue = if let float = value as? CGFloat {
+            Float(truncating: NSNumber(value: (float)))
+        } else if let double = value as? Double {
+            Float(truncating: NSNumber(value: (double)))
+        } else {
+            value
+        }
         send(values: [value], address: address)
     }
     
