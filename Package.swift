@@ -13,7 +13,7 @@ let package = Package(
         .library(name: "OSCTools2", targets: ["OSCTools2"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/orchetect/OSCKit", from: "0.5.0"),
+        .package(url: "https://github.com/orchetect/OSCKit", from: "1.0.0"),
         .package(url: "https://github.com/heestand-xyz/Logger", from: "0.3.0"),
         .package(url: "https://github.com/rwbutler/connectivity", from: "6.1.1"),
     ],

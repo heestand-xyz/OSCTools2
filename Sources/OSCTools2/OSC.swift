@@ -66,7 +66,9 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
                 
         client = OSCClient()
         
-        server = OSCServer(port: UInt16(settings.serverPort), receiveQueue: queue, dispatchQueue: queue)
+        server = OSCServer(port: UInt16(settings.serverPort)) { [weak self] message, timeTag in
+            self?.take(message: message)
+        }
 #endif
         
 #if !targetEnvironment(simulator)
@@ -76,12 +78,6 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
 #endif
         
         settings.delegate = self
-
-#if !targetEnvironment(simulator)
-        server!.setHandler { [weak self] message, timeTag in
-            self?.take(message: message)
-        }
-#endif
         
         start()
         
@@ -95,7 +91,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     // MARK: - Tear Down
     
-    private func tearDown() {
+    public func tearDown() {
         stop()
 #if !targetEnvironment(simulator)
         client = nil
@@ -229,8 +225,8 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     // MARK: - Send
     
-    public func send(value: AnyOSCValue, address: String) {
-        let value: AnyOSCValue = if let float = value as? CGFloat {
+    public func send(value: any OSCValue, address: String) {
+        let value: any OSCValue = if let float = value as? CGFloat {
             Float(truncating: NSNumber(value: (float)))
         } else if let double = value as? Double {
             Float(truncating: NSNumber(value: (double)))
@@ -240,7 +236,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         send(values: [value], address: address)
     }
     
-    public func send(values: [AnyOSCValue], address: String) {
+    public func send(values: [any OSCValue], address: String) {
         
         guard active else { return }
         
@@ -361,14 +357,16 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
 #if !targetEnvironment(simulator)
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
             guard let self else { return }
-            do {
-                try server?.start()
-                try client?.start()
-                DispatchQueue.main.async {
-                    self.isRunning = true
+            Task {
+                do {
+                    try await self.server?.start()
+                    try self.client?.start()
+                    await MainActor.run {                    
+                        self.isRunning = true
+                    }
+                } catch {
+                    Logger.log(.error(error), frequency: .verbose)
                 }
-            } catch {
-                Logger.log(.error(error), frequency: .verbose)
             }
         }
 #endif
@@ -376,8 +374,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     public func stop() {
 #if !targetEnvironment(simulator)
-        server?.stop()
         client?.stop()
+        Task {
+            await server?.stop()
+        }
 #endif
         isRunning = false
     }
@@ -453,7 +453,6 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     public func setting(serverPort: Int) {
         isServerPortOpen = OSC.isPortOpen(port: in_port_t(serverPort))
-//        let port = (serverPort >= 1024 && serverPort <= 65_535) ? UInt16(serverPort) : 1024
         tearDown()
         setup()
     }
