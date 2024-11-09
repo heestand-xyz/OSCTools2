@@ -11,7 +11,7 @@ import SystemConfiguration.CaptiveNetwork
 
 public class OSCConnection: ObservableObject {
     
-    @Published private var status: ConnectivityStatus = .determining
+    @Published public private(set) var status: ConnectivityStatus = .determining
     
     public enum State: Equatable {
         public enum Connection {
@@ -22,6 +22,12 @@ public class OSCConnection: ObservableObject {
         case connected(Connection, withInternet: Bool)
         case disconnected
         case determining
+        public var isOnline: Bool {
+            if case .connected(let connection, let withInternet) = self {
+                return withInternet
+            }
+            return false
+        }
     }
     
     public var state: State {
