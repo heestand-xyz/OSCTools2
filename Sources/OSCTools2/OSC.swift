@@ -215,6 +215,23 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     }
     
     @discardableResult
+    public func backgroundListenToAnyArrayAsync(
+        to address: @escaping () async -> (String?),
+        _ callback: @escaping ([any OSCValue]) -> ()
+    ) -> UUID {
+        let id = UUID()
+        listeners[id] = { [weak self] valueAddress, values in
+            guard let self = self else { return }
+            Task {
+                guard let address = await address() else { return }
+                guard self.wildcardMatch(valueAddress, with: address) else { return }
+                callback(values)
+            }
+        }
+        return id
+    }
+    
+    @discardableResult
     public func backgroundListenToAll(
         _ callback: @escaping (String, [any OSCValue]) -> ()
     ) -> UUID {
