@@ -154,7 +154,7 @@ public class OSCConnection: ObservableObject {
 #endif
     }
     
-#if !os(macOS)
+#if !os(macOS) && !os(tvOS)
     @available(*, deprecated)
     private func getWiFiName() -> String? {
         if let interfaces = CNCopySupportedInterfaces() as NSArray? {

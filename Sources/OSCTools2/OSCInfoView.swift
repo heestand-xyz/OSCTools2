@@ -182,12 +182,12 @@ public struct OSCInfoView<Leading: View, Trailing: View>: View {
     }
     
     func copyToClipboard(_ text: String) {
-        #if os(macOS)
+#if os(macOS)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        #else
+#elseif os(iOS) || os(visionOS)
         UIPasteboard.general.string = text
-        #endif
+#endif
     }
 }
 

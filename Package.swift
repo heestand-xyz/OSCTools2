@@ -8,6 +8,7 @@ let package = Package(
         .iOS(.v14),
         .tvOS(.v14),
         .macOS(.v11),
+        .visionOS(.v1),
     ],
     products: [
         .library(name: "OSCTools2", targets: ["OSCTools2"]),
