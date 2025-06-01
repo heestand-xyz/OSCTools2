@@ -8,33 +8,53 @@ import OSCKit
 import Logger
 import Combine
 
-public class OSC: ObservableObject, OSCSettingsDelegate {
+//@globalActor
+//private actor OSCActor {
+//    static let shared: OSCActor = .init()
+//    private init() {}
+//}
+
+@Observable
+public class OSC: OSCSettingsDelegate {
     
-    let queue: DispatchQueue
+    private let queue: DispatchQueue
     
+    @MainActor
     public let connection: OSCConnection = .init()
     public let settings: OSCSettings = .init()
     
-    #if !targetEnvironment(simulator)
-    var client: OSCClient?
-    var server: OSCServer?
-    #endif
+#if !targetEnvironment(simulator)
+    @ObservationIgnored
+    private var client: OSCClient?
+    @ObservationIgnored
+    private var server: OSCServer?
+#endif
     
-    let localNetworkAuthorization = LocalNetworkAuthorization()
+    private let localNetworkAuthorization = LocalNetworkAuthorization()
 
+    @ObservationIgnored
     private var isRunning: Bool = false
     
-    @Published public var isServerPortOpen: Bool!
+    @MainActor
+    public private(set) var isServerPortOpen: Bool = false
+    @MainActor
+    public private(set) var updateRecentInput: Bool = false
+    @MainActor
+    public private(set) var updateRecentOutput: Bool = false
+    @MainActor
+    public private(set) var recentInput: Bool = false
+    @MainActor
+    public private(set) var recentOutput: Bool = false
     
-    @Published public var updateRecentInput: Bool = false
-    @Published public var updateRecentOutput: Bool = false
-    @Published public var recentInput: Bool = false
-    @Published public var recentOutput: Bool = false
-    var recentInputTimer: Timer?
-    var recentOutputTimer: Timer?
+    @ObservationIgnored
+    private var recentInputTimer: Timer?
+    @ObservationIgnored
+    private var recentOutputTimer: Timer?
     
-    var listeners: [UUID: (_ address: String, _ values: [any OSCValue]) -> ()] = [:]
+    @ObservationIgnored
+    private var listeners: [UUID: (_ address: String, _ values: [any OSCValue]) -> ()] = [:]
     
+    @ObservationIgnored
     public var active: Bool = true {
         didSet {
             if active {
@@ -45,46 +65,48 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         }
     }
     
-    var gate: Bool = false
-    var lastValuesReceived: [String: String] = [:]
+    @ObservationIgnored
+    private var gate: Bool = false
+    @ObservationIgnored
+    private var lastValuesReceived: [String: String] = [:]
     
     // MARK: - Life Cycle -
     
     public init(queue: DispatchQueue = .main) {
         self.queue = queue
-        setup()
         listenToApp()
+        Task { @MainActor in
+            setup()
+        }
     }
     
     // MARK: - Setup
     
+    @MainActor
     private func setup() {
         
 #if !targetEnvironment(simulator)
-        client = nil
-        server = nil
-                
         client = OSCClient()
         
-        server = OSCServer(port: UInt16(settings.serverPort)) { [weak self] message, timeTag in
+        server = OSCServer(port: UInt16(settings.serverPort)) { [weak self] message, timeTag, host, port in
             self?.take(message: message)
         }
-#endif
-        
-#if !targetEnvironment(simulator)
-        isServerPortOpen = OSC.isPortOpen(port: in_port_t(settings.serverPort))
-#else
-        isServerPortOpen = false
+
+        Task { @MainActor in
+            isServerPortOpen = OSC.isPortOpen(port: in_port_t(settings.serverPort))
+        }
 #endif
         
         settings.delegate = self
         
         start()
         
-        if let serverIPAddress: String = settings.preferredServerAddress {
-            connection.check()
-            if connection.allIpAddresses.contains(serverIPAddress){
-                connection.setCurrent(ipAddress: serverIPAddress)
+        Task { @MainActor in
+            if let serverIPAddress: String = settings.preferredServerAddress {
+                connection.check()
+                if connection.allIpAddresses.contains(serverIPAddress){
+                    connection.setCurrent(ipAddress: serverIPAddress)
+                }
             }
         }
     }
@@ -126,8 +148,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         start()
         #endif
         
-        connection.start()
-        connection.check()
+        Task { @MainActor in
+            connection.start()
+            connection.check()
+        }
     }
     
     @objc func willResignActive() {
@@ -136,7 +160,9 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         stop()
         #endif
         
-        connection.stop()
+        Task { @MainActor in
+            connection.stop()
+        }
     }
     
     @objc func willEnterForeground() {}
@@ -148,12 +174,14 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     }
     
     // MARK: - Set Preferred
-    
+
+    @MainActor
     public func setPreferred(ipAddress: String) {
         connection.setCurrent(ipAddress: ipAddress)
         settings.preferredServerAddress = ipAddress
     }
-    
+
+    @MainActor
     public func resetPreferredIPAddress() {
         connection.resetCurrentIPAddress()
         settings.preferredServerAddress = nil
@@ -260,16 +288,15 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
         Logger.log(arguments: ["address": address, "values": values], frequency: .loop)
         
 #if !targetEnvironment(simulator)
-//        CRASH in OSCKit (before Issue-#10) on DispatchQueue.global(qos: .userInteractive).async { [weak self] in
         do {
             let message: OSCMessage = .message(address, values: values)
             try self.client?.send(message, to: settings.clientAddress, port: UInt16(settings.clientPort))
         } catch {
             Logger.log(.error(error), message: "OSC Message Failed to Send", arguments: ["address": address, "values": values])
         }
-        if updateRecentOutput {
-            DispatchQueue.main.async {
-                self.setRecentOutput()
+        Task { @MainActor in
+            if updateRecentOutput {
+                setRecentOutput()
             }
         }
 #endif
@@ -277,7 +304,7 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     
     // MARK: - Take
 
-    public func take(message: OSCMessage) {
+    private func take(message: OSCMessage) {
         
         guard active else { return }
         
@@ -288,15 +315,15 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
             callback(address, values)
         }
         
-        /// Indication
-        if updateRecentInput {
-            DispatchQueue.main.async { [weak self] in
-                self?.setRecentInput()
+        Task { @MainActor in
+            /// Indication
+            if updateRecentInput {
+                setRecentInput()
             }
         }
     }
 
-    public func take(bundle: OSCBundle) {
+    private func take(bundle: OSCBundle) {
         
         guard active else { return }
         
@@ -372,19 +399,12 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
             self.stop()
         }
 #if !targetEnvironment(simulator)
-        DispatchQueue.global(qos: .userInteractive).async { [weak self] in
-            guard let self else { return }
-            Task {
-                do {
-                    try await self.server?.start()
-                    try self.client?.start()
-                    await MainActor.run {                    
-                        self.isRunning = true
-                    }
-                } catch {
-                    Logger.log(.error(error), frequency: .verbose)
-                }
-            }
+        do {
+            try self.server?.start()
+            try self.client?.start()
+            isRunning = true
+        } catch {
+            Logger.log(.error(error), frequency: .verbose)
         }
 #endif
     }
@@ -392,29 +412,33 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     public func stop() {
 #if !targetEnvironment(simulator)
         client?.stop()
-        Task {
-            await server?.stop()
-        }
+        server?.stop()
 #endif
         isRunning = false
     }
     
     // MARK: - Recent
     
+    @MainActor
     func setRecentInput() {
         recentInput = true
         recentInputTimer?.invalidate()
-        recentInputTimer = Timer(timeInterval: 0.25, repeats: false, block: {  [weak self] t in
-            self?.recentInput = false
+        recentInputTimer = Timer(timeInterval: 0.25, repeats: false, block: { [weak self] t in
+            Task { @MainActor in
+                self?.recentInput = false
+            }
         })
         RunLoop.current.add(recentInputTimer!, forMode: .common)
     }
     
+    @MainActor
     func setRecentOutput() {
         recentOutput = true
         recentOutputTimer?.invalidate()
-        recentOutputTimer = Timer(timeInterval: 0.25, repeats: false, block: {  [weak self] t in
-            self?.recentOutput = false
+        recentOutputTimer = Timer(timeInterval: 0.25, repeats: false, block: { [weak self] t in
+            Task { @MainActor in
+                self?.recentOutput = false
+            }
         })
         RunLoop.current.add(recentOutputTimer!, forMode: .common)
     }
@@ -469,8 +493,10 @@ public class OSC: ObservableObject, OSCSettingsDelegate {
     public func setting(clientPort: Int) {}
     
     public func setting(serverPort: Int) {
-        isServerPortOpen = OSC.isPortOpen(port: in_port_t(serverPort))
         tearDown()
-        setup()
+        Task { @MainActor in
+            isServerPortOpen = OSC.isPortOpen(port: in_port_t(serverPort))
+            setup()
+        }
     }
 }

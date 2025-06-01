@@ -8,10 +8,16 @@ import Connectivity
 import Logger
 import Combine
 import SystemConfiguration.CaptiveNetwork
+import Network
 
-public class OSCConnection: ObservableObject {
+@MainActor
+@Observable
+public class OSCConnection {
     
-    @Published public private(set) var status: ConnectivityStatus = .determining
+//    private let monitor = NWPathMonitor()
+//    private let monitorQueue = DispatchQueue.global(qos: .background)
+
+    public private(set) var status: ConnectivityStatus = .determining
     
     public enum State: Equatable {
         public enum Connection {
@@ -67,8 +73,8 @@ public class OSCConnection: ObservableObject {
         return false
     }
     
-    @Published public var currentIpAddress: String?
-    @Published public private(set) var allIpAddresses: [String] = []
+    public var currentIpAddress: String?
+    public private(set) var allIpAddresses: [String] = []
     
     private let connectivity = Connectivity()
     
@@ -97,23 +103,31 @@ public class OSCConnection: ObservableObject {
         connectivity.startNotifier()
         
         connectivity.whenConnected = { [weak self] connectivity in
-            DispatchQueue.main.async {
-                self?.status = connectivity.status
-                self?.check()
-            }
+            print("--> Connected: \(connectivity)")
+            self?.status = connectivity.status
+            self?.check()
         }
         
         connectivity.whenDisconnected = { [weak self] connectivity in
-            DispatchQueue.main.async {
-                self?.status = connectivity.status
-                self?.check()
-            }
+            print("--> Disconnected: \(connectivity)")
+            self?.status = connectivity.status
+            self?.check()
         }
+        
+//        monitor.pathUpdateHandler = { [weak self] path in
+//            print("--> Update: \(path.usesInterfaceType(.wiredEthernet) ? "Ethernet" : "") \(path.usesInterfaceType(.wifi) ? "WiFi" : "")")
+//            Task { @MainActor in
+//                self?.check()
+//            }
+//        }
+//        
+//        monitor.start(queue: monitorQueue)
     }
     
     public func stop() {
         Logger.log(frequency: .verbose)
         connectivity.stopNotifier()
+//        monitor.cancel()
     }
     
     /// Check IP Address

@@ -7,9 +7,9 @@ import SwiftUI
 
 public struct OSCInfoView<Leading: View, Trailing: View>: View {
     
-    @ObservedObject var osc: OSC
-    @ObservedObject var settings: OSCSettings
-    @ObservedObject var connection: OSCConnection
+    @Bindable var osc: OSC
+    @Bindable var settings: OSCSettings
+    @Bindable var connection: OSCConnection
     @Binding var active: Bool
     @Binding var color: Color
     let larger: Bool
