@@ -14,7 +14,16 @@ import Network
 @Observable
 public class OSCConnection {
     
-    public private(set) var status: ConnectivityStatus = .determining
+    public private(set) var status: ConnectivityStatus = .determining {
+        didSet {
+            statusContinuation?.yield(status)
+        }
+    }
+    @ObservationIgnored
+    public lazy var statusStream: AsyncStream<ConnectivityStatus> = .init { continuation in
+        statusContinuation = continuation
+    }
+    private var statusContinuation: AsyncStream<ConnectivityStatus>.Continuation?
     
     public enum State: Equatable {
         public enum Connection {
@@ -70,7 +79,17 @@ public class OSCConnection {
         return false
     }
     
-    public var currentIpAddress: String?
+    public var currentIpAddress: String? {
+        didSet {
+            currentIpAddressContinuation?.yield(currentIpAddress)
+        }
+    }
+    @ObservationIgnored
+    public lazy var currentIpAddressStream: AsyncStream<String?> = .init { continuation in
+        currentIpAddressContinuation = continuation
+    }
+    private var currentIpAddressContinuation: AsyncStream<String?>.Continuation?
+    
     public private(set) var allIpAddresses: [String] = []
     
     private let connectivity = Connectivity()
