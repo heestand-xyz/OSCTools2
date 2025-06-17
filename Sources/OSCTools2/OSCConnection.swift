@@ -14,9 +14,6 @@ import Network
 @Observable
 public class OSCConnection {
     
-//    private let monitor = NWPathMonitor()
-//    private let monitorQueue = DispatchQueue.global(qos: .background)
-
     public private(set) var status: ConnectivityStatus = .determining
     
     public enum State: Equatable {
@@ -103,36 +100,23 @@ public class OSCConnection {
         connectivity.startNotifier()
         
         connectivity.whenConnected = { [weak self] connectivity in
-            print("--> Connected: \(connectivity)")
             self?.status = connectivity.status
             self?.check()
         }
         
         connectivity.whenDisconnected = { [weak self] connectivity in
-            print("--> Disconnected: \(connectivity)")
             self?.status = connectivity.status
             self?.check()
         }
-        
-//        monitor.pathUpdateHandler = { [weak self] path in
-//            print("--> Update: \(path.usesInterfaceType(.wiredEthernet) ? "Ethernet" : "") \(path.usesInterfaceType(.wifi) ? "WiFi" : "")")
-//            Task { @MainActor in
-//                self?.check()
-//            }
-//        }
-//        
-//        monitor.start(queue: monitorQueue)
     }
     
     public func stop() {
         Logger.log(frequency: .verbose)
         connectivity.stopNotifier()
-//        monitor.cancel()
     }
     
     /// Check IP Address
     public func check() {
-//        wifiName = getWiFiName()
 #if !targetEnvironment(simulator)
         let addresses = getAddresses()
         var targetIPAddress: String?
@@ -167,20 +151,6 @@ public class OSCConnection {
         Logger.log(arguments: ["addresses": addresses, "targetAddress": targetIPAddress], frequency: .verbose)
 #endif
     }
-    
-#if !os(macOS) && !os(tvOS)
-    @available(*, deprecated)
-    private func getWiFiName() -> String? {
-        if let interfaces = CNCopySupportedInterfaces() as NSArray? {
-            for interface in interfaces {
-                if let interfaceInfo = CNCopyCurrentNetworkInfo(interface as! CFString) as NSDictionary? {
-                    return interfaceInfo[kCNNetworkInfoKeySSID as String] as? String
-                }
-            }
-        }
-        return nil
-    }
-#endif
     
     private func getAddresses() -> [String] {
         var addresses = [String]()
