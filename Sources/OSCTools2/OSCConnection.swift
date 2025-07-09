@@ -25,8 +25,8 @@ public class OSCConnection {
     }
     private var statusContinuation: AsyncStream<ConnectivityStatus>.Continuation?
     
-    public enum State: Equatable {
-        public enum Connection {
+    public enum State: Equatable, Sendable {
+        public enum Connection: Sendable {
             case wifi
             case cellular
             case ethernet
